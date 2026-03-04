@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Archipelago Overlay</title>
+    <style>
+        body {
+            background: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2, h3 {
+            margin-bottom: 10px;
+        }
+
+        .player {
+            margin-bottom: 18px;
+        }
+
+        .bar-container {
+            width: 100%;
+            max-width: 400px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: rgb(219, 20, 20);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .totals {
+            margin-top: 30px;
+            border-top: 1px solid #555;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Archipelago Status</h2>
+
+<div id="players">Loading...</div>
+
+<div class="totals">
+    <h3>Global Progress</h3>
+    <div id="globalStats"></div>
+</div>
+
+<script>
+
+async function updateOverlay() {
+    try {
+        const res = await fetch("http://localhost:5000/data");
+        const data = await res.json();
+
+        const playersDiv = document.getElementById("players");
+        playersDiv.innerHTML = "";
+
+        let globalDone = 0;
+        let globalTotal = 0;
+
+        const players = Object.entries(data.players || {});
+
+        if (players.length === 0) {
+            playersDiv.innerHTML = "Waiting for player data...";
+            return;
+        }
+
+        players.sort((a, b) => b[1].percent - a[1].percent);
+
+        players.forEach(([name, p]) => {
+
+            globalDone += p.checks_done || 0;
+            globalTotal += p.total_checks || 0;
+
+            const percent = p.percent || 0;
+
+            playersDiv.innerHTML += `
+                <div class="player">
+                    <strong>${name}</strong> (${p.game})<br>
+                    ${p.checks_done} / ${p.total_checks} — ${percent}%
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width:${percent}%"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        const remaining = globalTotal - globalDone;
+        const globalPercent = globalTotal > 0
+            ? ((globalDone / globalTotal) * 100).toFixed(1)
+            : 0;
+
+        document.getElementById("globalStats").innerHTML = `
+            Total Completed: ${globalDone} / ${globalTotal}<br>
+            Total Remaining: ${remaining}<br>
+            Overall Progress: ${globalPercent}%
+        `;
+
+    } catch (err) {
+        document.getElementById("players").innerHTML =
+            "Error fetching data. Is the Python server running?";
+    }
+}
+
+setInterval(updateOverlay, 2000);
+updateOverlay();
+
+</script>
+
+</body>
+</html>
