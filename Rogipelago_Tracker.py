@@ -4,12 +4,18 @@ import json
 from flask import Flask, jsonify, send_from_directory
 import threading
 from flask_cors import CORS
+import sys
 
 # Variables to configure
-ARCHIPELAGO_URI = "ws://localhost:38281"
-SLOT_NAME = "Roganz"
-GAME_NAME = "Terraria"
-PASSWORD = None
+ARCHIPELAGO_URI = sys.argv[1] if len(sys.argv) > 1 else input("Enter the Archipelago server connection details (e.g. archipelago.gg:38281):")
+SLOT_NAME = sys.argv[2] if len(sys.argv) > 2 else input("Enter a valid slot name:")
+GAME_NAME = sys.argv[3] if len(sys.argv) > 3 else input("Enter the game that slot is playing: ")
+PASSWORD = sys.argv[4] if len(sys.argv) > 4 else input ("Enter password for this slot, else leave blank: ") or None
+
+if ARCHIPELAGO_URI.startswith("archipelago"):
+    ARCHIPELAGO_URI = "wss://" + ARCHIPELAGO_URI
+else:
+    ARCHIPELAGO_URI = "ws://" + ARCHIPELAGO_URI
 
 # Data Storage
 overlay_data = {
@@ -99,7 +105,8 @@ async def listen():
 # Connection response parser
         while True:
             raw = await ws.recv()
-            print(raw)
+            # Remove the # below for debugging
+            # print(raw)
             messages = json.loads(raw)
 
             for msg in messages:
@@ -114,7 +121,9 @@ async def listen():
                     add_event(event_text)
 
                     print("DeathLink detected:", event_text)    
-
+                if cmd == "InvalidSlot":
+                    print("Invalid slot name. Please retry your input.")
+                    return
                 if cmd == "Connected":
                     print("Connected as slot")
 
@@ -139,8 +148,7 @@ async def listen():
                     await ws.send(json.dumps([{
                         "cmd": "Say",
                         "text": "!status"
-                    }]))
-# Status response parser
+                    }]))# Status response parser
                 elif cmd == "PrintJSON":
                     msg_type = msg.get("type")
 
@@ -173,43 +181,39 @@ async def listen():
                                 except Exception:
                                     pass
 
-                        if msg.get("type") in ["ItemSend", "ItemReceive"]:
-                            item_info = msg.get("item", {})
-
-                            sending_slot = item_info.get("player")
-                            receiving_slot = msg.get("receiving")
-
-                            item_id = item_info.get("item")
-                            location_id = item_info.get("location")
-
-                            # Unique key per item transfer
-                            unique_key = (sending_slot, receiving_slot, item_id, location_id)
-
-                            if unique_key in seen_items:
-                                continue  # skip duplicate
-
-                            seen_items.add(unique_key)
-
-                            sender_name = slot_to_name.get(sending_slot, f"Slot {sending_slot}")
-                            receiver_name = slot_to_name.get(receiving_slot, f"Slot {receiving_slot}")
-
-                            item_name = item_id_to_name.get(item_id, f"Item {item_id}")
-                            location_name = location_id_to_name.get(location_id, f"Location {location_id}")
-
-                            event_text = f"{sender_name} sent {item_name} to {receiver_name} ({location_name})"
-
-                            add_event(event_text)
-
-                            print("Item event:", event_text)
-# Does a check for status EVERY item, spammy with multiple players but ensures status is always up to date. Can be changed to only check on ItemReceive if desired.
-#                            await ws.send(json.dumps([{
-#                                "cmd": "Say",
-#                                "text": "!status"
-#                            }]))
-
-                        elif "found" in text.lower():
-                            add_event(text)
-
+# This code reports items, but the numbers and locations are just numbers, not very helpful. Leaving here, but commenting out for now
+#                        if msg.get("type") in ["ItemSend", "ItemReceive"]:
+#                            item_info = msg.get("item", {})
+#
+#                            sending_slot = item_info.get("player")
+#                            receiving_slot = msg.get("receiving")
+#
+#                            item_id = item_info.get("item")
+#                            location_id = item_info.get("location")
+#
+#                            # Unique key per item transfer
+#                            unique_key = (sending_slot, receiving_slot, item_id, location_id)
+#
+#                            if unique_key in seen_items:
+#                                continue  # skip duplicate
+#
+#                            seen_items.add(unique_key)
+#
+#                            sender_name = slot_to_name.get(sending_slot, f"Slot {sending_slot}")
+#                            receiver_name = slot_to_name.get(receiving_slot, f"Slot {receiving_slot}")
+#
+#                            item_name = item_id_to_name.get(item_id, f"Item {item_id}")
+#                            location_name = location_id_to_name.get(location_id, f"Location {location_id}")
+#
+#                            event_text = f"{sender_name} sent {item_name} to {receiver_name} ({location_name})"
+#
+#                            add_event(event_text)
+#
+#                            print("Item event:", event_text)
+# Below adds a status check EVERY time a check is completed. Found this spammy with multiple players but ensures status is always up to date.
+#                            await ws.send(json.dumps([{"cmd": "Say","text": "!status"}]))
+#                       elif "found" in text.lower():
+#                           add_event(text)
                         if msg_type == "DeathLink":
                             add_event(f"💀 DeathLink: {text}")
 

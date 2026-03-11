@@ -46,16 +46,14 @@
 <body>
 
 <h2>Archipelago Status</h2>
-<button onclick="refreshData()" class="refresh-button">
-  Refresh Status
-</button>
+
 <div class="divider"></div>
 <h3>Global Progress</h3>
 <div id="globalStats"></div>
 
 <div class="divider"></div>
-<h3>Recent Deaths</h3>
-<div id="recentEvents">Waiting for deaths...</div>
+<h3>Recent Updates</h3>
+<div id="recentEvents">Waiting for events...</div>
 </div>
 
 <div class="divider"></div>
@@ -118,7 +116,7 @@ async function updateOverlay() {
             const recent = (data.recent_events || []).slice(-5).reverse();
 
             if (recent.length === 0) {
-                recentDiv.innerHTML = "No recent deaths yet.";
+                recentDiv.innerHTML = "No recent events yet.";
             } else {
                 recent.forEach(event => {
                     recentDiv.innerHTML += `
@@ -139,14 +137,6 @@ setInterval(updateOverlay, 2000);
 updateOverlay();
 
 </script>
-<script>
-function refreshData() {
-    fetch("/refresh")
-        .then(response => response.json())
-        .then(data => {
-            console.log("Manual refresh triggered");
-        });
-}
-</script>
+
 </body>
 </html>

@@ -3,25 +3,20 @@ import websockets
 import json
 from flask import Flask, jsonify, send_from_directory
 import threading
-import time
 from flask_cors import CORS
 
-# =============================
-# CONFIG
-# =============================
-
+# Variables to configure
 ARCHIPELAGO_URI = "ws://localhost:38281"
 SLOT_NAME = "Roganz"
 GAME_NAME = "Terraria"
 PASSWORD = None
 
-# =============================
-# DATA STORAGE
-# =============================
-
+# Data Storage
 overlay_data = {
     "players": {},
-    "recent_items": []
+    "recent_items": [],
+    "recent_events": [],
+    "max_events": 20
 }
 
 slot_to_name = {}
@@ -30,25 +25,23 @@ slot_to_game = {}
 app = Flask(__name__)
 CORS(app)
 
-# =============================
 # Website setup for JSON data
-# =============================
-
 @app.route("/")
 def index():
-    return send_from_directory(".", "overlay.html")
+    return send_from_directory(".", "Rogipelago_Website.html")
 
 @app.route("/data")
 def data():
     return jsonify(overlay_data)
 
-# =============================
 # Archipelago Websocket Integration
-# =============================
+def add_event(text):
+    overlay_data["recent_events"].append(text)
+
+    if len(overlay_data["recent_events"]) > overlay_data["max_events"]:
+        overlay_data["recent_events"].pop(0)
 
 async def listen():
-    last_status_time = 0
-
     async with websockets.connect(ARCHIPELAGO_URI) as ws:
         print("Connected to Archipelago server")
 
@@ -68,19 +61,27 @@ async def listen():
                 "build": 6,
                 "class": "Version"
             },
-            "tags": ["Tracker"]
+            "tags": ["Tracker", "DeathLink"]
         }]))
-
+# Connection response parser
         while True:
             raw = await ws.recv()
+            print(raw)
             messages = json.loads(raw)
 
             for msg in messages:
                 cmd = msg.get("cmd")
 
-                # =============================
-                # CONNECTED
-                # =============================
+                if cmd == "Bounced" and "DeathLink" in msg.get("tags", []):
+                    data = msg.get("data", {})
+                    player = data.get("source", "Unknown")
+                    cause = data.get("cause", "Died mysteriously.")
+
+                    event_text = f"💀 {player} died: {cause}"
+                    add_event(event_text)
+
+                    print("DeathLink detected:", event_text)    
+
                 if cmd == "Connected":
                     print("Connected as slot")
 
@@ -102,22 +103,16 @@ async def listen():
                             "percent": 0
                         }
 
-                    # Immediately request status
                     await ws.send(json.dumps([{
                         "cmd": "Say",
                         "text": "!status"
                     }]))
-
-                    last_status_time = time.time()
-
-                # =============================
-                # STATUS PARSER
-                # =============================
+# Status response parser
                 elif cmd == "PrintJSON":
+                    msg_type = msg.get("type")
+
                     for entry in msg.get("data", []):
                         text = entry.get("text", "")
-
-                        # Split into lines (important!)
                         lines = text.split("\n")
 
                         for line in lines:
@@ -145,18 +140,16 @@ async def listen():
                                 except Exception:
                                     pass
 
-            # Refresh status every 30 seconds
-            if time.time() - last_status_time > 30:
-                await ws.send(json.dumps([{
-                    "cmd": "Say",
-                    "text": "!status"
-                }]))
-                last_status_time = time.time()
+                        if msg_type in ["ItemSend", "ItemReceive"]:
+                            add_event(text)
 
-# =============================
-# RUN SERVER + CLIENT
-# =============================
+                        elif "found" in text.lower():
+                            add_event(text)
 
+                        if msg_type == "DeathLink":
+                            add_event(f"💀 DeathLink: {text}")
+
+# Run Flask and Websocket listener
 def run_flask():
     app.run(port=5000)
 
