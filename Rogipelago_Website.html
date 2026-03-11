@@ -25,15 +25,10 @@
             height: 20px;
             background: #333;
             border-radius: 10px;
-            overflow: hidden;
+            margin-top: 20px;
+            overflow: visible;
             margin-top: 5px;
-        }
-
-        .bar-fill {
-            height: 100%;
-            background: rgb(219, 20, 20);
-            width: 0%;
-            transition: width 0.4s ease;
+            
         }
 
         .divider {
@@ -54,8 +49,8 @@
 <div id="globalStats"></div>
 
 <div class="divider"></div>
-<h3>Recent Deaths</h3>
-<div id="recentEvents">Waiting for deaths...</div>
+<h3>Recent Events</h3>
+<div id="recentEvents">Waiting for events...</div>
 </div>
 
 <div class="divider"></div>
@@ -67,7 +62,6 @@ async function updateOverlay() {
     try {
         const res = await fetch("http://localhost:5000/data");
         const data = await res.json();
-
         const playersDiv = document.getElementById("players");
         playersDiv.innerHTML = "";
 
@@ -84,23 +78,30 @@ async function updateOverlay() {
         players.sort((a, b) => b[1].percent - a[1].percent);
 
         players.forEach(([name, p]) => {
-
             globalDone += p.checks_done || 0;
             globalTotal += p.total_checks || 0;
-
             const percent = p.percent || 0;
-
+            const connected = p.connected;
+            const statusIcon = p.connected ? `<span class="status" style="color: green;padding-left: 6px;text-shadow: 0 0 6px green">🟢</span>` : `<span class="status" style="color: gray;padding-left: 6px;text-shadow: 0 0 6px gray">⚫</span>`;
             playersDiv.innerHTML += `
-                <div class="player">
-                    <strong>${name}</strong> (${p.game})<br>
-                    ${p.checks_done} / ${p.total_checks} — ${percent}%
-                    <div class="bar-container">
-                        <div class="bar-fill" style="width:${percent}%"></div>
+                <div class="player" style="padding-left: 6px; color: ${p.colour}; text-shadow: 0 0 6px ${p.colour}; margin-bottom: 6px;">
+                    <span class="status">${statusIcon}</span>
+                    <span class="player_name"><strong>${name}</strong></span>
+                    <span>(${p.game})</span>
+                    <span>${p.checks_done} / ${p.total_checks} — ${percent}%</span>
+                    <div class="bar-container" style="margin-top: 20px;">
+                    <div class="bar-fill" style="
+                        width:${percent}%;
+                        background:${p.colour};
+                        border-radius: 10px;
+                        height: 18px;
+                    box-shadow: ${p.connected 
+                        ? `inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px ${p.colour}, 0 0 16px ${p.colour}` 
+                        : `0 0 2px ${p.colour}`};
+                    "></div>
                     </div>
                 </div>
             `;
-        });
-
         const remaining = globalTotal - globalDone;
         const globalPercent = globalTotal > 0
             ? ((globalDone / globalTotal) * 100).toFixed(1)
@@ -118,7 +119,7 @@ async function updateOverlay() {
             const recent = (data.recent_events || []).slice(-5).reverse();
 
             if (recent.length === 0) {
-                recentDiv.innerHTML = "No recent deaths yet.";
+                recentDiv.innerHTML = "No recent events yet.";
             } else {
                 recent.forEach(event => {
                     recentDiv.innerHTML += `
@@ -128,14 +129,14 @@ async function updateOverlay() {
                     `;
                 });
             }
-
+        });
     } catch (err) {
         document.getElementById("players").innerHTML =
             "Error fetching data. Is the Rogipelago Tracker running?";
     }
 }
 
-setInterval(updateOverlay, 2000);
+setInterval(updateOverlay, 15000);
 updateOverlay();
 
 </script>
