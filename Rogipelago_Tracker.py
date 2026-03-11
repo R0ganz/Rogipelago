@@ -148,7 +148,8 @@ async def listen():
                     await ws.send(json.dumps([{
                         "cmd": "Say",
                         "text": "!status"
-                    }]))# Status response parser
+                    }]))
+# Status response parser
                 elif cmd == "PrintJSON":
                     msg_type = msg.get("type")
 
