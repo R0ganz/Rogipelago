@@ -32,10 +32,10 @@ log.setLevel(logging.ERROR)
 
 slot_to_name = {}
 slot_to_game = {}
-item_id_to_name = {}
-location_id_to_name = {}
 game_item_names = {}
 game_location_names = {}
+item_id_to_name = {}
+location_id_to_name = {}
 multiworld_games = set()
 seen_locations = set()
 websocket_connection = None
@@ -163,10 +163,14 @@ async def listen():
                     
                     # Request datapackage
                     print("Detected games:", multiworld_games)
-                    await ws.send(json.dumps([{
-                        "cmd": "GetDataPackage",
-                        "games": list(multiworld_games)
-                    }]))
+
+                    for game in multiworld_games:
+                        print(f"Requesting datapackage for {game}...")
+                        await ws.send(json.dumps([{
+                            "cmd": "GetDataPackage",
+                            "games": [game]
+                        }]))
+                        await asyncio.sleep(0.5)  # small delay to avoid flooding
 
                     await ws.send(json.dumps([{
                         "cmd": "Say",
@@ -175,35 +179,41 @@ async def listen():
 
                 # RECEIVE ITEM/LOCATION DATABASE
                 elif cmd == "DataPackage":
-                    data = msg.get("data", {})
-                    games = data.get("games", {})
-                    item_id_to_name.clear()
-                    location_id_to_name.clear()
-                    total_items = 0
-                    total_locations = 0
-                    for game_name, game_data in games.items():
-                        items = game_data.get("item_name_to_id", {})
-                        locations = game_data.get("location_name_to_id", {})
-                        for name, id in items.items():
-                            item_id_to_name[id] = name
-                            total_items += 1
-                        for name, id in locations.items():
-                            location_id_to_name[id] = name
-                            total_locations += 1
-                        print(f"Loaded {game_name}: {len(items)} items, {len(locations)} locations")
-                        print(f"TOTAL: {total_items} items, {total_locations} locations loaded")
+                    games = msg.get("data", {}).get("games", {})
+
+                    for game, data in games.items():
+                        if game not in item_id_to_name:
+                            item_id_to_name[game] = {}
+
+                        if game not in location_id_to_name:
+                            location_id_to_name[game] = {}
+
+                        for name, id in data.get("item_name_to_id", {}).items():
+                            item_id_to_name[game][id] = name
+
+                        for name, id in data.get("location_name_to_id", {}).items():
+                            location_id_to_name[game][id] = name
+
+                        print(f"Loaded {game}: {len(item_id_to_name[game])} items, {len(location_id_to_name[game])} locations")
 
                 # ITEM EVENTS
                 elif cmd == "PrintJSON" and msg.get("type") in ["ItemSend", "ItemReceive"]:
                     item = msg["item"]
                     item_id = item["item"]
                     location_id = item["location"]
-                    item_name = item_id_to_name.get(item_id, f"Unknown Item {item_id}")
-                    location_name = location_id_to_name.get(location_id, f"Unknown Location {location_id}")
                     # Sender info
                     sender_slot = item.get("player")
                     sender_name = slot_to_name.get(sender_slot, f"Player{sender_slot}")
-                    sender_game = slot_to_game.get(sender_slot, "Unknown Game")
+                    sender_game = slot_to_game.get(sender_slot, "Unknown")
+                    receiver_game = slot_to_game.get(msg.get("receiving"), "Unknown")
+                    item_game_data = item_id_to_name.get(receiver_game)
+                    location_game_data = location_id_to_name.get(sender_game)
+                    if not item_game_data or not location_game_data:
+                        print(f"[WAIT] Missing datapackage for {receiver_game} or {sender_game}, skipping event")
+                        continue
+
+                    item_name = item_game_data.get(item_id, f"Unknown Item {item_id}")
+                    location_name = location_game_data.get(location_id, f"Unknown Location {location_id}")
                     # Receiver info
                     receiver_slot = msg.get("receiving")
                     receiver_name = slot_to_name.get(receiver_slot, f"Player{receiver_slot}")
