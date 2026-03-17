@@ -1,7 +1,7 @@
 # Rogipelago - Roganz' Archipelago Tracker
+
 An Archipelago Python script, allows you to connect to the instance as a tracker, hosting a basic website with information about every player's game, checks done, left and any new deaths.
-<<<<<<< HEAD
-=======
+
 
 # Percentages
 At the top, we can see the global progress, with number of checks done, left and remaining, then a TOTAL percentage for everyone.
@@ -22,5 +22,4 @@ For item checks, players names will be displayed in their colour, items in a gol
 Currently the script will, every five minutes, send a `!status` to the Archipelago server, which will update the bars, percentages and checks completed for every person, and globally. I have, for ease of use, added a button on the website at the top `Refresh Status` so that you can complete this refresh yourself, outside of the five minute checks.
 
 # Nerd Stuff
-Currently, the program retrieves every game that is in the pool, every check, for every game. This is a LARGE file and currently gives a LOT of output at the start, which isn't concerning but I do want to find if there are simplier, cleaner ways. We also have the colours randomly assigned, if it's possible to add website configuration for each person I'd like that, although it'll be tricky I'm sure. Lastly, I need to do more testing, as this currently has only been tested by me, on my own, with me doing the only set of checks. I need to see it with more people, but until then, I release this hoping it helps folks and works well, but if there are issues, please contact me via Github, Discord (
->>>>>>> 1fed17ea496f9fe882a0da6114200fe5cc492f9d
+Currently, the program retrieves every game that is in the pool, every check, for every game. This is a LARGE file and currently gives a LOT of output at the start, which isn't concerning but I do want to find if there are simplier, cleaner ways. We also have the colours randomly assigned, if it's possible to add website configuration for each person I'd like that, although it'll be tricky I'm sure. Lastly, I need to do more testing, as this currently has only been tested by me, on my own, with me doing the only set of checks. I need to see it with more people, but until then, I release this hoping it helps folks and works well, but if there are issues, please contact me via Github or my Discord (roganz).
