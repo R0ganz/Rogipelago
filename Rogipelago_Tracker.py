@@ -113,7 +113,7 @@ async def listen():
         while True:
             raw = await ws.recv()
             # Remove the # below for debugging
-            print(raw)
+            #print(raw)
             messages = json.loads(raw)
 
             for msg in messages:
