@@ -36,6 +36,15 @@
             border-top: 1px solid #555;
             padding-top: 10px;
         }
+
+        #recentEvents {
+        height: 90px;
+        overflow-y: auto;
+        padding: 0px;
+    }
+        .recent-check {
+            margin-bottom: 0px;
+        }   
     </style>
 </head>
 <body>
@@ -51,7 +60,6 @@
 <div class="divider"></div>
 <h3>Recent Events</h3>
 <div id="recentEvents">Waiting for events...</div>
-</div>
 
 <div class="divider"></div>
 <div id="players">Loading...</div> 
@@ -116,7 +124,7 @@ async function updateOverlay() {
         const recentDiv = document.getElementById("recentEvents");
             recentDiv.innerHTML = "";
 
-            const recent = (data.recent_events || []).slice(-5).reverse();
+            const recent = (data.recent_events || []).slice().reverse();
 
             if (recent.length === 0) {
                 recentDiv.innerHTML = "No recent events yet.";
