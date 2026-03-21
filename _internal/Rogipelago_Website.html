@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Archipelago Overlay</title>
+    <title>Rogipelago Overlay</title>
     <style>
         body {
             background: black;
@@ -28,7 +28,6 @@
             margin-top: 20px;
             overflow: visible;
             margin-top: 5px;
-            
         }
 
         .divider {
@@ -44,12 +43,15 @@
     }
         .recent-check {
             margin-bottom: 0px;
-        }   
+            text-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+        }
+        .recent-check span {
+            text-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+        }
     </style>
 </head>
 <body>
-
-<h2>Archipelago Status</h2>
+<h2 id="title">Rogipelago Status</h2>
 <button onclick="window.location.href=window.location.href; refreshData()" class="refresh-button">
   Refresh Status
 </button>
@@ -65,51 +67,104 @@
 <div id="players">Loading...</div> 
 
 <script>
+    let playerTimers ={};
+    function formatTime(seconds) {
+        seconds = Math.floor(seconds);
 
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+
+        return `${h.toString().padStart(2, '0')}:` +
+            `${m.toString().padStart(2, '0')}:` +
+            `${s.toString().padStart(2, '0')}`;
+    }
+
+function interpolateColour(colour1, colour2, factor) {
+    const c1 = parseInt(colour1.slice(1), 16);
+    const c2 = parseInt(colour2.slice(1), 16);
+    const r1 = (c1 >> 16) & 0xff;
+    const g1 = (c1 >> 8) & 0xff;
+    const b1 = c1 & 0xff;
+    const r2 = (c2 >> 16) & 0xff;
+    const g2 = (c2 >> 8) & 0xff;
+    const b2 = c2 & 0xff;
+    const r = Math.round(r1 + (r2 - r1) * factor);
+    const g = Math.round(g1 + (g2 - g1) * factor);
+    const b = Math.round(b1 + (b2 - b1) * factor);
+    return `rgb(${r}, ${g}, ${b})`;
+}
 async function updateOverlay() {
     try {
         const res = await fetch("http://localhost:5000/data");
         const data = await res.json();
         const playersDiv = document.getElementById("players");
-        playersDiv.innerHTML = "";
 
         let globalDone = 0;
         let globalTotal = 0;
 
         const players = Object.entries(data.players || {});
-
         if (players.length === 0) {
             playersDiv.innerHTML = "Waiting for player data...";
             return;
         }
 
         players.sort((a, b) => b[1].percent - a[1].percent);
-
+        playersDiv.innerHTML = "";
         players.forEach(([name, p]) => {
+            playerTimers[name] = {
+                base: p.current_time || 0,
+                lastUpdate: Date.now(),
+                finished: !!p.time_finished,
+                connected: p.connected   // <-- track connection
+        };
+        playerTimers[name].connected = p.connected;
+        if (!p.connected) {
+            playerTimers[name].base = p.current_time || playerTimers[name].base;
+            playerTimers[name].lastUpdate = Date.now();
+        }
             globalDone += p.checks_done || 0;
             globalTotal += p.total_checks || 0;
+
             const percent = p.percent || 0;
-            const connected = p.connected;
-            const statusIcon = p.connected ? `<span class="status" style="color: green;padding-left: 6px;text-shadow: 0 0 6px green">🟢</span>` : `<span class="status" style="color: gray;padding-left: 6px;text-shadow: 0 0 6px gray">⚫</span>`;
+            const statusIcon = p.connected
+                ? `<span class="status" style="color: green;padding-left: 6px;text-shadow: 0 0 6px green">🟢</span>`
+                : `<span class="status" style="color: gray;padding-left: 6px;text-shadow: 0 0 2px gray">⚫</span>`;
             playersDiv.innerHTML += `
                 <div class="player" style="padding-left: 6px; color: ${p.colour}; text-shadow: 0 0 6px ${p.colour}; margin-bottom: 6px;">
                     <span class="status">${statusIcon}</span>
                     <span class="player_name"><strong>${name}</strong></span>
                     <span>(${p.game})</span>
-                    <span>${p.checks_done} / ${p.total_checks} — ${percent}%</span>
-                    <div class="bar-container" style="margin-top: 20px;">
-                    <div class="bar-fill" style="
-                        width:${percent}%;
-                        background:${p.colour};
-                        border-radius: 10px;
-                        height: 18px;
-                    box-shadow: ${p.connected 
-                        ? `inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px ${p.colour}, 0 0 16px ${p.colour}` 
-                        : `0 0 2px ${p.colour}`};
-                    "></div>
+                    <span>${p.checks_done} / ${p.total_checks} — ${percent}%
+                        — 💀:${p.deaths}
+                        — ⏱ <span id="time-${name}">${formatTime(p.current_time || 0)}</span>
+                    </span>
+                    <span>
+                    <div class="bar-container">
+                        <div class="bar-fill" id="bar-${name}" style="
+                            width:${p.percent}%;;
+                            background:${p.colour};
+                            border-radius: 10px;
+                            height: 18px;
+                            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+                            box-shadow: ${p.connected
+                                ? `inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px ${p.colour}, 0 0 16px ${p.colour}` 
+                                : `0 0 2px ${p.colour}`
+                            };
+                        "></div>
                     </div>
                 </div>
             `;
+        setTimeout(() => {
+            players.forEach(([name, p]) => {
+                const bar = document.getElementById(`bar-${name}`);
+                if (bar.dataset.prev != p.percent) {
+                    bar.style.width = `${p.percent}%`;
+                    bar.dataset.prev = p.percent;
+                }
+            });
+        }, 50);
+
         const remaining = globalTotal - globalDone;
         const globalPercent = globalTotal > 0
             ? ((globalDone / globalTotal) * 100).toFixed(1)
@@ -120,7 +175,9 @@ async function updateOverlay() {
             Total Remaining: ${remaining}<br>
             Overall Progress: ${globalPercent}%
         `;
-
+        const progressFactor = globalTotal > 0 ? globalDone / globalTotal : 0;
+        const titleColour = interpolateColour("#000000", "#db1414", progressFactor);
+        document.getElementById("title").style.color = titleColour;
         const recentDiv = document.getElementById("recentEvents");
             recentDiv.innerHTML = "";
 
@@ -143,6 +200,19 @@ async function updateOverlay() {
             "Error fetching data. Is the Rogipelago Tracker running?";
     }
 }
+setInterval(() => {
+    const now = Date.now();
+
+    Object.entries(playerTimers).forEach(([name, t]) => {
+        if (t.finished || !t.connected) return;
+        const elapsed = Math.floor((now - t.lastUpdate) / 1000);
+        const total = t.base + elapsed;
+        const timeSpan = document.getElementById(`time-${name}`);
+        if (timeSpan) {
+            timeSpan.textContent = formatTime(total);
+        }
+    });
+}, 1000);
 
 setInterval(updateOverlay, 15000);
 updateOverlay();
