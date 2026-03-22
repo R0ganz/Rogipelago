@@ -1,7 +1,6 @@
 # Rogipelago Tracker - Integration with Archipelago, made pretty - By Roganz - Version
 import asyncio
 import re
-from unicodedata import name
 from datetime import datetime
 import websockets
 import json
@@ -21,16 +20,23 @@ DEBUG = False  # Set to False when publishing
 # Receiving  events, we can request status to refresh checks only during high-volume bursts
 STATUS_REQUEST_COOLDOWN = 20
 STATUS_REQUEST_FLOOD_THRESHOLD = 20
-
 # Maximum number of recent events to display on website (full history kept in memory/logs)
-MAX_DISPLAY_EVENTS = 200
+MAX_DISPLAY = 200
+MAX_LOGGING = 1000
+overlay_data = {"players": {}, "recent_events": deque(maxlen=MAX_DISPLAY)}
 
-overlay_data = {"players": {}, "recent_events": []}
 # Input variables from the user (Can be passed directly in command line, or input manually on launch)
 ARCHIPELAGO_URI = sys.argv[1] if len(sys.argv) > 1 else input("Enter the Archipelago server connection details (e.g. archipelago.gg:38281):")
 SLOT_NAME = sys.argv[2] if len(sys.argv) > 2 else input("Enter a valid slot name:")
 GAME_NAME = sys.argv[3] if len(sys.argv) > 3 else input("Enter the game that slot is playing: ")
 PASSWORD = sys.argv[4] if len(sys.argv) > 4 else input("Enter password for this slot, else leave blank: ") or None
+CUSTOM_PLAYER_COLOURS = {
+    "Roganz": "#db1414",
+    "Lizzz": "#8713bd"
+}
+ITEM_COLOUR = "#ca8d30"
+LOCATION_COLOUR = "#5fbb35"
+GAME_COLOUR = "#7a3cc8"
 
 if ARCHIPELAGO_URI.startswith("archipelago"):
     ARCHIPELAGO_URI = "wss://" + ARCHIPELAGO_URI
@@ -40,6 +46,7 @@ else:
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
     WEB_ROOT = os.path.join(BASE_DIR, "_internal")
+    RAW_ROOT = os.path.join(BASE_DIR, ".raw")
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     WEB_ROOT = BASE_DIR
@@ -191,6 +198,7 @@ def message_handler(msg):
                 player["time_started"] = None
             if player.get("time_finished") is None:
                 player["time_finished"] = event_ts
+                save_time_data()
                 print(f"[RELEASE] {player_name} released at {player['time_finished']}")
         add_event(event_text)
     elif archipelago_response == "Bounced" and "DeathLink" in msg.get("tags", []):
@@ -224,6 +232,7 @@ def message_handler(msg):
             if player["time_started"]:
                 player["total_time"] += now - player["time_started"]
                 player["time_started"] = None
+        save_time_data()
 
     elif archipelago_response == "PrintJSON" and archipelago_response_type == "CommandResult":
         for entry in msg.get("data", []):
@@ -264,15 +273,10 @@ def process_events():
         else:
             time.sleep(0.01)
 SAFE_URI = ARCHIPELAGO_URI.replace("://", "_").replace(":", "_")
-LOG_FILE = f"Rogipelago_{SAFE_URI}.log"
-TIME_FILE = f"Rogipelago_{SAFE_URI}.json"
-CUSTOM_PLAYER_COLOURS = {
-    "Roganz": "#db1414",
-    "Lizzz": "#8713bd"
-}
-ITEM_COLOUR = "#ca8d30"
-LOCATION_COLOUR = "#5fbb35"
-GAME_COLOUR = "#7a3cc8"
+LOG_FILE = f".raw/Rogipelago_{SAFE_URI}.log"
+TIME_FILE = f".raw/Rogipelago_{SAFE_URI}.json"
+os.makedirs(os.path.dirname(TIME_FILE), exist_ok=True)
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 log_buffer = []
 event_queue = deque()
 app = Flask(__name__)
@@ -292,13 +296,19 @@ def format_run_time(seconds):
     s = seconds % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
 
-
 def get_player_current_time(player):
     current = player.get("total_time", 0)
     if player.get("time_started") is not None:
         current += time.time() - player["time_started"]
     return current
 
+def periodic_time_save():
+    while True:
+        try:
+            save_time_data()
+        except Exception as e:
+            print("[ERROR saving time data]", e)
+        time.sleep(10)  # save every 10 seconds
 
 def format_event_timestamp(event_ts, run_seconds=None):
     # Display host wall-clock time and put player's run time in hover text.
@@ -336,11 +346,16 @@ def rebuild_death_counts():
 
 def save_time_data():
     data = {}
+    now = time.time()
     for name, p in overlay_data["players"].items():
+        total_time = p.get("total_time", 0)
+        # If currently running, include in total
+        if p.get("time_started") is not None:
+            total_time += now - p["time_started"]
         data[name] = {
-            "time_started": p.get("time_started"),
+            "time_started": None,  # reset on load
             "time_finished": p.get("time_finished"),
-            "total_time": p.get("total_time", 0)
+            "total_time": total_time
         }
     with open(TIME_FILE, "w") as f:
         json.dump(data, f)
@@ -367,7 +382,7 @@ def load_time_data():
         data = json.load(f)
     for name, t in data.items():
         if name in overlay_data["players"]:
-            overlay_data["players"][name]["time_started"] = t.get("time_started")
+            overlay_data["players"][name]["time_started"] = None
             overlay_data["players"][name]["time_finished"] = t.get("time_finished")
             overlay_data["players"][name]["total_time"] = t.get("total_time", 0)
 
@@ -380,12 +395,21 @@ def parse_player_status(status_text):
             print(f"[DEBUG] {line}")
         if " has " in line and "/" in line and "(" in line:
             try:
+                match = re.search(r"\((\d+)/(\d+)\)", line)
+                if not match:
+                    continue
+                
                 name = line.split(" has ")[0].strip()
-                numbers = line.split("(")[1].split(")")[0]  # e.g., "0/10"
-                done, total = map(int, numbers.split("/"))
+                numbers_match = re.search(r"\((\d+)/(\d+)\)", line)
+                if not numbers_match:
+                    continue
+
+                done = int(numbers_match.group(1))
+                total = int(numbers_match.group(2))
                 # Extract connections from "has X connection(s)"
                 conn_match = re.search(r"has\s+(\d+)\s+connections?", line)
-                connections = int(conn_match.group(1)) if conn_match else 0
+                conn_count = int(conn_match.group(1)) if conn_match else 0
+                save_time_data()
 
                 if name not in overlay_data["players"]:
                     overlay_data["players"][name] = {
@@ -408,8 +432,8 @@ def parse_player_status(status_text):
                 player["total_checks"] = total
                 player["percent"] = round((done / total)*100,1) if total else 0
                 was_connected = player.get("connected", False)
-                is_connected = connections > 0
-                player["connections"] = connections
+                is_connected = conn_count > 0
+                player["connections"] = conn_count
                 player["connected"] = is_connected
 
                 # If finished, do nothing
@@ -448,7 +472,7 @@ def static_files(filename):
 @app.route("/data")
 def data():
     now = time.time()
-    output = {"players": {}, "recent_events": overlay_data.get("recent_events", [])}
+    output = {"players": {}, "recent_events": list(overlay_data.get("recent_events", []))}
     for name, p in overlay_data.get("players", {}).items():
         current_time = p.get("total_time", 0)
         if p.get("time_started") is not None:
@@ -486,7 +510,7 @@ def debug():
     data = {
         "overlay_data": {
             "players": make_serializable_player_data(),
-            "recent_events": overlay_data.get("recent_events", [])
+            "recent_events": list(overlay_data.get("recent_events", []))
         },
         "connections": connections,
         "slot_to_name": slot_to_name,
@@ -501,7 +525,7 @@ def debug_html():
     debug_obj = {
         "overlay_data": {
             "players": make_serializable_player_data(),
-            "recent_events": overlay_data.get("recent_events", [])
+            "recent_events": list(overlay_data.get("recent_events", []))
         },
         "connections": connections,
         "slot_to_name": slot_to_name,
@@ -580,6 +604,7 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     threading.Thread(target=process_events, daemon=True).start()
     threading.Thread(target=flush_logs, daemon=True).start()
+    threading.Thread(target=periodic_time_save, daemon=True).start()
     event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(event_loop)
     event_loop.run_until_complete(listen())
