@@ -558,6 +558,7 @@ if overlay_data["recent_events"]:
 # WebSocket listener
 async def listen():
     global websocket_connection
+    global ARCHIPELAGO_URI
     while True:
         try:
             async with websockets.connect(ARCHIPELAGO_URI) as ws:
@@ -593,6 +594,11 @@ async def listen():
                         break
                     except json.JSONDecodeError as e:
                         print(f"[WARN] Failed to parse JSON: {e} - raw: {raw}")
+        except websockets.InvalidMessage:
+            # Attempt wss
+            if ARCHIPELAGO_URI.startswith("ws://"):
+                ARCHIPELAGO_URI = "ws" + ARCHIPELAGO_URI[1:]
+                continue
         except Exception as e:
             print(f"[ERROR] Could not connect: {e}. Retrying in 5s...")
         await asyncio.sleep(5)
