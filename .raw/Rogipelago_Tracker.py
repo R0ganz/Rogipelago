@@ -28,8 +28,7 @@ overlay_data = {"players": {}, "recent_events": deque(maxlen=MAX_DISPLAY)}
 # Input variables from the user (Can be passed directly in command line, or input manually on launch)
 ARCHIPELAGO_URI = sys.argv[1] if len(sys.argv) > 1 else input("Enter the Archipelago server connection details (e.g. archipelago.gg:38281):")
 SLOT_NAME = sys.argv[2] if len(sys.argv) > 2 else input("Enter a valid slot name:")
-GAME_NAME = sys.argv[3] if len(sys.argv) > 3 else input("Enter the game that slot is playing: ")
-PASSWORD = sys.argv[4] if len(sys.argv) > 4 else input("Enter password for this slot, else leave blank: ") or None
+PASSWORD = sys.argv[3] if len(sys.argv) > 3 else input("Enter password for this slot, else leave blank: ") or None
 CUSTOM_PLAYER_COLOURS = {
     "Roganz": "#db1414",
     "Lizzz": "#8713bd"
@@ -568,7 +567,7 @@ async def listen():
                     "cmd": "Connect",
                     "name": SLOT_NAME,
                     "password": PASSWORD,
-                    "game": GAME_NAME,
+                    "game": "",
                     "uuid": SLOT_NAME,
                     "items_handling": 0,
                     "version": {"major":0,"minor":6,"build":6,"class":"Version"},
