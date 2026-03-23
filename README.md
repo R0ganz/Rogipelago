@@ -25,3 +25,7 @@ The script will manually count up with each event that comes in, adding 1 to the
 
 # Nerd Stuff
 The script will retrieve a DataPackage from Archipelago, per game, one at a time. This is to avoid flooding the server at connection, the data is needed to properly translate the checks (Which are just numbers) to the relevant names. We also have the colours randomly assigned, if it's possible to add website configuration for each person I'd like that, although it'll be tricky I'm sure. Lastly, I need to do more testing, as this currently has only been tested by me, on my own, with me doing the only set of checks. I need to see it with more people, but until then, I release this hoping it helps folks and works well, but if there are issues, please contact me via Github or my Discord (roganz)
+
+# Extra
+If you wish to join in with Archipelago's I run, as well as a community of gamers and nerds, https://dsc.gg/roganz is my discord community for just that. We have various game servers, events and I live stream a lot of our antics over at https://twitch.tv/roganz should you wish to see a sneak peak.
+Lastly, if you wish to support me in a more meaningful way, than go to http://www.patreon.com/roganz, this is the bests way to support me and I greatly appreciate any\all help you are willing to give to support me and my work.
