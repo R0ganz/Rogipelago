@@ -26,7 +26,7 @@ MAX_LOGGING = 1000
 overlay_data = {"players": {}, "recent_events": deque(maxlen=MAX_DISPLAY)}
 
 # Input variables from the user (Can be passed directly in command line, or input manually on launch)
-ARCHIPELAGO_URI = sys.argv[1] if len(sys.argv) > 1 else input("Enter the Archipelago server connection details (e.g. archipelago.gg:38281):")
+ARCHIPELAGO_URI_INPUT = sys.argv[1] if len(sys.argv) > 1 else input("Enter the Archipelago server connection details (e.g. archipelago.gg:38281):")
 SLOT_NAME = sys.argv[2] if len(sys.argv) > 2 else input("Enter a valid slot name:")
 PASSWORD = sys.argv[3] if len(sys.argv) > 3 else input("Enter password for this slot, else leave blank: ") or None
 CUSTOM_PLAYER_COLOURS = {
@@ -37,10 +37,10 @@ ITEM_COLOUR = "#ca8d30"
 LOCATION_COLOUR = "#5fbb35"
 GAME_COLOUR = "#7a3cc8"
 
-if ARCHIPELAGO_URI.startswith("archipelago"):
-    ARCHIPELAGO_URI = "wss://" + ARCHIPELAGO_URI
+if ARCHIPELAGO_URI_INPUT.startswith("archipelago"):
+    ARCHIPELAGO_URI = "wss://" + ARCHIPELAGO_URI_INPUT
 else:
-    ARCHIPELAGO_URI = "ws://" + ARCHIPELAGO_URI
+    ARCHIPELAGO_URI = "ws://" + ARCHIPELAGO_URI_INPUT
 # Logging setup
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -594,9 +594,11 @@ async def listen():
                     except json.JSONDecodeError as e:
                         print(f"[WARN] Failed to parse JSON: {e} - raw: {raw}")
         except websockets.InvalidMessage:
-            # Attempt wss
             if ARCHIPELAGO_URI.startswith("ws://"):
-                ARCHIPELAGO_URI = "ws" + ARCHIPELAGO_URI[1:]
+                ARCHIPELAGO_URI = "ws" + ARCHIPELAGO_URI_INPUT[1:]
+                continue
+            elif ARCHIPELAGO_URI.startswith("wss://"):
+                ARCHIPELAGO_URI = "ws" + ARCHIPELAGO_URI_INPUT[1:]
                 continue
         except Exception as e:
             print(f"[ERROR] Could not connect: {e}. Retrying in 5s...")
