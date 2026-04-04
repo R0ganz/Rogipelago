@@ -30,5 +30,5 @@ https://trello.com/b/SY45vGxR/rogipelago
 
 # Extra
 To contact me, use Discord (roganz) or email (theroganz@gmail.com)
-If you wish to join in with Archipelago's I run, as well as a community of gamers and nerds, https://dsc.gg/roganz is my discord community for just that. We have various game servers, events and I live stream a lot of our antics over at https://twitch.tv/roganz should you wish to see a sneak peak.
+If you wish to join in with Archipelagos I run, as well as a community of gamers and nerds, https://dsc.gg/roganz is my discord community for just that. We have various game servers, events and I live stream a lot of our antics over at https://twitch.tv/roganz should you wish to see a sneak peak.
 Lastly, if you wish to support me in a more meaningful way, than go to http://www.patreon.com/roganz, this is the bests way to support me and I greatly appreciate any\all help you are willing to give to support me and my work.
