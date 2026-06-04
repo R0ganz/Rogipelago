@@ -1,7 +1,11 @@
 ### Python ###
 # Byte-compiled / optimized / DLL files
-build/
-dist/
-.Rogipelago Admin/
 Rogipelago_Tracker.spec
 Rogipelago.zip
+requirements.txt
+Rogipelago_ws*
+Update.py
+venv/*
+.venv/*
+.backup/*
+__pycache__/*

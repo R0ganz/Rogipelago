@@ -1,3 +1,4 @@
+<!-- Rogipelago Tracker - Integration with Archipelago, made pretty - By Roganz - Version Alpha 2.3-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -37,10 +38,10 @@
         }
 
         #recentEvents {
-        height: 90px;
+        height: 95px;
         overflow-y: auto;
         padding: 0px;
-    }
+        }
         .recent-check {
             margin-bottom: 0px;
             text-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
@@ -48,25 +49,68 @@
         .recent-check span {
             text-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
         }
-    </style>
+        #title {
+            font-weight: bold;
+            text-shadow:
+                -1px -1px 0 #db1414,
+                1px -1px 0 #db1414,
+                -1px  1px 0 #db1414,
+                1px  1px 0 #db1414,
+                0 0 8px rgba(0,0,0,0.8);
+        }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .refresh-button {
+            height: 20px;
+            padding: 0 10px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid #db1414;
+            background: #222;
+            color: white;
+        }
+        .refresh-button:hover {
+            background: #db1414;
+        }
+</style>
 </head>
 <body>
-<h2 id="title">Rogipelago Status</h2>
-<button onclick="window.location.href=window.location.href; refreshData()" class="refresh-button">
-  Refresh Status
-</button>
+<div class="title-row">
+    <h2 id="title">Rogipelago Status</h2>
+    <button onclick="refreshData()" class="refresh-button">Refresh Status</button>
+</div>
 <div class="divider"></div>
 <h3>Global Progress</h3>
 <div id="globalStats"></div>
 
 <div class="divider"></div>
 <h3>Recent Events</h3>
+<div style="margin-bottom:10px;">
+    Event display:
+    <select id="eventMode" onchange="renderOverlay()">
+        <option value="full">Full</option>
+        <option value="compact">Compact</option>
+    </select>
+</div>
 <div id="recentEvents">Waiting for events...</div>
 
 <div class="divider"></div>
+<div style="margin-bottom:10px;">
+    Sort players by:
+    <select id="sortMode" onchange="renderOverlay()">
+        <option value="percent">Completion %</option>
+        <option value="alphabetical">Alphabetical</option>
+        <option value="time">Time elapsed</option>
+        <option value="deaths">Deaths</option>
+        <option value="checks">Total checks</option>
+    </select>
+</div>
 <div id="players">Loading...</div> 
-
 <script>
+    let latestData = null;
     let playerTimers ={};
     function formatTime(seconds) {
         seconds = Math.floor(seconds);
@@ -79,6 +123,20 @@
             `${m.toString().padStart(2, '0')}:` +
             `${s.toString().padStart(2, '0')}`;
     }
+
+function timeSince(timestamp) {
+    if (!timestamp) return "No checks yet";
+    const now = Date.now() / 1000;
+    const secondsAgo = Math.floor(now - timestamp);
+    
+    if (secondsAgo < 60) return `${secondsAgo}s ago`;
+    const minutesAgo = Math.floor(secondsAgo / 60);
+    if (minutesAgo < 60) return `${minutesAgo}m ago`;
+    const hoursAgo = Math.floor(minutesAgo / 60);
+    if (hoursAgo < 24) return `${hoursAgo}h ago`;
+    const daysAgo = Math.floor(hoursAgo / 24);
+    return `${daysAgo}d ago`;
+}
 
 function interpolateColour(colour1, colour2, factor) {
     const c1 = parseInt(colour1.slice(1), 16);
@@ -94,11 +152,68 @@ function interpolateColour(colour1, colour2, factor) {
     const b = Math.round(b1 + (b2 - b1) * factor);
     return `rgb(${r}, ${g}, ${b})`;
 }
-async function updateOverlay() {
+function renderEvent(event, mode = "full") {
+    if (typeof event === 'string') {
+        // Fallback for legacy HTML strings
+        return `<div class="recent-check">${event}</div>`;
+    }
+    
+    const type = event.type;
+    
+    if (type === "item_transfer") {
+        if (mode === "compact") {
+            return `
+                <div class="recent-check">
+                    <span style="color:${event.sender_colour};font-weight:bold;text-shadow:0 0 6px ${event.sender_colour}">${event.sender}</span> sent
+                    <span style="color:${event.item_colour};text-shadow:0 0 6px ${event.item_colour}">${event.item}</span> to 
+                    <span style="color:${event.receiver_colour};font-weight:bold;text-shadow:0 0 6px ${event.receiver_colour}">${event.receiver}</span>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="recent-check">
+                    <span style="color:${event.sender_colour};font-weight:bold;text-shadow:0 0 6px ${event.sender_colour}">${event.sender}</span> sent 
+                    <span style="color:${event.item_colour};text-shadow:0 0 6px ${event.item_colour}">${event.item}</span> to 
+                    <span style="color:${event.receiver_colour};font-weight:bold;text-shadow:0 0 6px ${event.receiver_colour}">${event.receiver}</span> 
+                    by completing <span style="color:${event.location_colour};text-shadow:0 0 6px ${event.location_colour}">${event.location}</span> 
+                    ${event.time_html}
+                </div>
+            `;
+        }
+    } else if (type === "release") {
+        return `
+            <div class="recent-check">
+                <span style="color:${event.colour};font-weight:bold;text-shadow:0 0 6px ${event.colour}">${event.name}</span> has released all items. ${event.time_html}
+            </div>
+        `;
+    } else if (type === "death") {
+        return `
+            <div class="recent-check">
+                <span style="color:${event.colour};font-weight:bold;text-shadow:0 0 6px ${event.colour}">${event.name}</span> died: 
+                <span style="color:#ca8d30;text-shadow:0 0 6px #ca8d30">${event.cause}</span>
+            </div>
+        `;
+    } else if (type === "text") {
+        return `<div class="recent-check">${event.html}</div>`;
+    }
+    
+    return `<div class="recent-check">${JSON.stringify(event)}</div>`;
+}
+async function fetchData() {
     try {
-        const res = await fetch("http://localhost:5000/data");
-        const data = await res.json();
-        const playersDiv = document.getElementById("players");
+        const res = await fetch("http://localhost:8745/data");
+        latestData = await res.json();
+        renderOverlay();
+        return;
+    } catch (err) {
+        document.getElementById("players").innerHTML =
+            "Error fetching data. Is the Rogipelago Tracker running?";
+    }
+}
+function renderOverlay() {
+    const data = latestData;
+    if (!data) return;
+const playersDiv = document.getElementById("players");
 
         let globalDone = 0;
         let globalTotal = 0;
@@ -108,8 +223,24 @@ async function updateOverlay() {
             playersDiv.innerHTML = "Waiting for player data...";
             return;
         }
-
-        players.sort((a, b) => b[1].percent - a[1].percent);
+    const sortMode = document.getElementById("sortMode")?.value || "percent";
+    players.sort((a, b) => {
+        const A = a[1];
+        const B = b[1];
+        switch (sortMode) {
+            case "alphabetical":
+                return a[0].localeCompare(b[0]);
+            case "time":
+                return (B.current_time || 0) - (A.current_time || 0);
+            case "deaths":
+                return (B.deaths || 0) - (A.deaths || 0);
+            case "checks":
+                return (B.checks_done || 0) - (A.checks_done || 0);
+            case "percent":
+            default:
+                return (B.percent || 0) - (A.percent || 0);
+        }
+    });
         playersDiv.innerHTML = "";
         players.forEach(([name, p]) => {
             playerTimers[name] = {
@@ -130,31 +261,31 @@ async function updateOverlay() {
             const statusIcon = p.connected
                 ? `<span class="status" style="color: green;padding-left: 6px;text-shadow: 0 0 6px green">🟢</span>`
                 : `<span class="status" style="color: gray;padding-left: 6px;text-shadow: 0 0 2px gray">⚫</span>`;
-            playersDiv.innerHTML += `
-                <div class="player" style="padding-left: 6px; color: ${p.colour}; text-shadow: 0 0 6px ${p.colour}; margin-bottom: 6px;">
-                    <span class="status">${statusIcon}</span>
-                    <span class="player_name"><strong>${name}</strong></span>
-                    <span>(${p.game})</span>
-                    <span>${p.checks_done} / ${p.total_checks} — ${percent}%
-                        — 💀:${p.deaths}
-                        — ⏱ <span id="time-${name}">${formatTime(p.current_time || 0)}</span>
-                    </span>
-                    <span>
-                    <div class="bar-container">
-                        <div class="bar-fill" id="bar-${name}" style="
-                            width:${p.percent}%;;
-                            background:${p.colour};
-                            border-radius: 10px;
-                            height: 18px;
-                            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-                            box-shadow: ${p.connected
-                                ? `inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px ${p.colour}, 0 0 16px ${p.colour}` 
-                                : `0 0 2px ${p.colour}`
-                            };
-                        "></div>
+                playersDiv.innerHTML += `
+                    <div class="player" style="padding-left: 6px; color: ${p.colour}; text-shadow: 0 0 6px ${p.colour}; margin-bottom: 6px;" title="Last check: ${timeSince(p.last_check_time)}">
+                        <span class="status">${statusIcon}</span>
+                        <span class="player_name"><strong>${name}</strong></span>
+                        <span>(${p.game})</span>
+                        <span>${p.checks_done} / ${p.total_checks} — ${percent}%
+                            — 💀:${p.deaths}
+                            — ⏱ <span id="time-${name}">${formatTime(p.current_time || 0)}</span>
+                        </span>
+                        <span>
+                        <div class="bar-container">
+                            <div class="bar-fill" id="bar-${name}" style="
+                                width:${p.percent}%;;
+                                background:${p.colour};
+                                border-radius: 10px;
+                                height: 18px;
+                                transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+                                box-shadow: ${p.connected
+                                    ? `inset 0 0 4px rgba(255,255,255,0.4), 0 0 6px ${p.colour}, 0 0 16px ${p.colour}` 
+                                    : `0 0 2px ${p.colour}`
+                                };
+                            "></div>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
         setTimeout(() => {
             players.forEach(([name, p]) => {
                 const bar = document.getElementById(`bar-${name}`);
@@ -176,30 +307,24 @@ async function updateOverlay() {
             Overall Progress: ${globalPercent}%
         `;
         const progressFactor = globalTotal > 0 ? globalDone / globalTotal : 0;
-        const titleColour = interpolateColour("#000000", "#db1414", progressFactor);
+        const titleColour = interpolateColour("#ffffff", "#db1414", progressFactor);
         document.getElementById("title").style.color = titleColour;
         const recentDiv = document.getElementById("recentEvents");
-            recentDiv.innerHTML = "";
+        const eventMode = document.getElementById("eventMode")?.value || "full";
+        recentDiv.innerHTML = "";
 
-            const recent = (data.recent_events || []).slice().reverse();
+        const recent = (data.recent_events || []).slice().reverse();
 
-            if (recent.length === 0) {
-                recentDiv.innerHTML = "No recent events yet.";
-            } else {
-                recent.forEach(event => {
-                    recentDiv.innerHTML += `
-                        <div class="recent-check">
-                            ${event}
-                        </div>
-                    `;
-                });
-            }
+        if (recent.length === 0) {
+            recentDiv.innerHTML = "No recent events yet.";
+        } else {
+            recent.forEach(event => {
+                recentDiv.innerHTML += renderEvent(event, eventMode);
+            });
+        }
         });
-    } catch (err) {
-        document.getElementById("players").innerHTML =
-            "Error fetching data. Is the Rogipelago Tracker running?";
     }
-}
+
 setInterval(() => {
     const now = Date.now();
 
@@ -214,8 +339,8 @@ setInterval(() => {
     });
 }, 1000);
 
-setInterval(updateOverlay, 15000);
-updateOverlay();
+setInterval(fetchData, 15000);
+fetchData();
 
 </script>
 <script>
